@@ -5,7 +5,7 @@
  * - Make functions pure whenever possible. It's always possible.
  */
 
-var fs = require("fs");
+const fs = require("fs");
 
 // We actually want it to throw and exit if this goes wrong. We can't do anything without data.
 const jolts = fs.readFileSync("input.csv", "utf8")
@@ -82,7 +82,7 @@ function totalArrangements(data, maxDistance) {
  * @param {number} n where 2 is normal fib
  */
 function fibN(size, n=2) {
-  let ones = new Array(size)
+  const ones = new Array(size)
     .fill(null);
 
   ones.forEach((_, i) => {
