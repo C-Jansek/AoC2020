@@ -6,21 +6,16 @@ const seats = fs
   .split("\n")
   .map((row) => row.split(""));
 
+// Part One
 let prevSeats = [];
 let currentSeats = seats;
-
-// Part One
 while (
   prevSeats.map((row) => row.join("")).join("") !=
   currentSeats.map((row) => row.join("")).join("")
 ) {
   prevSeats = currentSeats.slice();
-  currentSeats = occupySeats(currentSeats, 4);
+  currentSeats = occupySeats(currentSeats, false, 4);
 }
-
-console.log("Done:");
-printSeats(currentSeats);
-
 console.log("Part One:", countHashtags(currentSeats));
 
 // Part Two
@@ -31,74 +26,52 @@ while (
   currentSeats.map((row) => row.join("")).join("")
 ) {
   prevSeats = currentSeats.slice();
-  currentSeats = occupySeatsVisible(currentSeats, 5);
+  currentSeats = occupySeats(currentSeats, true, 5);
 }
-
-console.log("Done:");
-printSeats(currentSeats);
-
 console.log("Part Two:", countHashtags(currentSeats));
 
+/**
+ * Check if this seat is occupied
+ * @param {string} elem
+ * @return {boolean}
+ */
 function isOccupied(elem) {
   return elem === "#";
 }
 
+/**
+ * Check if this is a seat
+ * @param {string} elem 
+ * @return {boolean}
+ */
 function isSeat(elem) {
   return elem === "#" || elem == "L";
 }
 
+/**
+ * Count all '#' chars in data
+ * @param {string[]} data 
+ * @return {number}
+ */
 function countHashtags(data) {
   return data.join().match(/\#/g) == null ? 0 : data.join().match(/\#/g).length;
 }
 
-function occupySeats(data, busyCount = 4) {
-  let newData = [];
-  data.forEach((row, i, data) => {
-    let newRow = [];
-    row.forEach((elem, j) => {
-      elem !== "."
-        ? newRow.push(applySeatRules(elem, i, j, data, busyCount))
-        : newRow.push(".");
-    });
-    newData.push(newRow);
-  });
-  return newData;
+/**
+ * Check if row and col in data range
+ * @param {Number} i row
+ * @param {Number} j col
+ * @param {string[]} data 
+ * @return {boolean}
+ */
+function inDataRange(i, j, data) {
+  return i >= 0 && i < data.length && j >= 0 && j < data[0].length;
 }
 
-function occupySeatsVisible(data, busyCount = 4) {
-  let newData = [];
-  data.forEach((row, i, data) => {
-    let newRow = [];
-    row.forEach((elem, j) => {
-      elem !== "."
-        ? newRow.push(applySeatRulesVisible(elem, i, j, data, busyCount))
-        : newRow.push(".");
-    });
-    newData.push(newRow);
-  });
-  return newData;
-}
-
-function applySeatRules(focus, i, j, data, busyCount = 4) {
-  let occupiedAround = 0;
-  for (let r = i - 1; r <= i + 1; r++) {
-    for (let s = j - 1; s <= j + 1; s++) {
-      if (
-        r < data.length &&
-        r >= 0 &&
-        s < data[0].length &&
-        s >= 0 &&
-        !(r == i && s == j)
-      ) {
-        if (isOccupied(data[r][s])) occupiedAround++;
-      }
-    }
-  }
-  if (occupiedAround >= busyCount && focus === "#") focus = "L";
-  if (occupiedAround == 0 && focus === "L") focus = "#";
-  return focus;
-}
-
+/**
+ * Create array of directions horizontal, vertical and diagonal
+ * @return {number[][]}
+ */
 function createDirs() {
   dirs = [];
   for (let i = -1; i <= 1; i++) {
@@ -109,23 +82,50 @@ function createDirs() {
   return dirs;
 }
 
-function applySeatRulesVisible(focus, i, j, data, busyCount = 4) {
+/**
+ * Runs occupation rules on all seats
+ * @param {string[]} data field of seats
+ * @param {boolean} lookFurther look only to adjecent seats of look fully in each direction
+ * @param {number} busyCount how many occupied seats are to much
+ * @return {stringp[]} new field of seats
+ */
+function occupySeats(data, lookFurther = false, busyCount = 4) {
+  return data.map((row, i, data) =>
+    row.map(
+      (val, j) =>
+        (val = isSeat(val)
+          ? applySeatRules(val, i, j, data, lookFurther, busyCount)
+          : ".")
+    )
+  );
+}
+
+/**
+ * Apply seat rules on focus seat.
+ * Rules: 
+ *  If there are more than [busyCount] seats occupied (adjecent or total in all directions), seat becomes empty (S)
+ *  If there are no seats occupied (adjecent or total in all directions), seat becomes occupied (#)
+ * @param {string} focus current seat
+ * @param {number} i row of current seat
+ * @param {number} j col of current seat
+ * @param {string[]} data field of seats
+ * @param {boolean} lookFurther look only to adjecent seats of look fully in each direction
+ * @param {number} busyCount how many occupied seats are to much
+ * @return {string} new focus seat state
+ */
+function applySeatRules(focus, i, j, data, lookFurther, busyCount = 4) {
   let occupiedVisible = 0;
-  let dirs = createDirs();
+  const dirs = createDirs();
+
   dirs.forEach((dir) => {
-    let y = i;
-    let x = j;
-    let further = true;
-    while (further === true) {
+    let y = i + dir[0];
+    let x = j + dir[1];
+    while (lookFurther && inDataRange(y, x, data) && !isSeat(data[y][x])) {
       y += dir[0];
       x += dir[1];
-
-      if (!(x > -1 && x < data[0].length)) further = false;
-      else if (!(y > -1 && y < data.length)) further = false;
-      else if (isSeat(data[y][x])) further = "seat";
     }
-    if (further === "seat") {
-      if (isOccupied(data[y][x])) occupiedVisible++;
+    if (inDataRange(y, x, data)) {
+      if (isSeat(data[y][x]) && isOccupied(data[y][x])) occupiedVisible++;
     }
   });
   if (occupiedVisible >= busyCount && focus === "#") focus = "L";
@@ -133,6 +133,11 @@ function applySeatRulesVisible(focus, i, j, data, busyCount = 4) {
   return focus;
 }
 
+/**
+ * Prints field of seats to the console
+ * @param {string[]} data field of seats
+ * @param {number[]} [focus] location of focussed seat (color red)
+ */
 function printSeats(data, focus = [-1, -1]) {
   data.forEach((row, i) => {
     let outputRow = "";
