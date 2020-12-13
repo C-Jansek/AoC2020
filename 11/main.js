@@ -141,9 +141,14 @@ function applySeatRules(focus, pos, data, options = {}) {
     occupiedVisible = directions.reduce((acc, direction) => {
         let x = pos[0] + direction[0];
         let y = pos[1] + direction[1];
-        while (lookFurther && inDataRange([x, y], data) && !isSeat(data[y][x])) {
-            x += direction[0];
-            y += direction[1];
+        if (!inDataRange([x, y], data)) return acc;
+        
+        if (lookFurther) {
+            while (!isSeat(data[y][x])) {
+                x += direction[0];
+                y += direction[1];
+                if (!inDataRange([x, y], data)) break;
+            }
         }
         if (inDataRange([x, y], data)) {
             if (isSeat(data[y][x]) && isOccupied(data[y][x])) return acc + 1;
