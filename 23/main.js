@@ -1,74 +1,92 @@
 const fs = require('fs');
-const cups = fs
+const _ = require('lodash');
+const yallist = require('yallist');
+let cupsInput = fs
     .readFileSync('input.csv', 'utf8')
     .split('')
     .map((v) => Number(v));
 
-console.log(cups);
+cups = yallist.create(cupsInput);
 
-// let current = cups[0];
-// for (let i = 0; i < 100; i++) {
-//     // console.log('cups:', cups);
-//     // console.log('current:', current);
-//     const moveCups = cups.splice(cups.indexOf(current) + 1, 3);
-//     if (moveCups.length < 3) {
-//         moveCups.push(...cups.splice(0, 3 - moveCups.length));
-//     }
-//     // console.log('pick up:', moveCups);
-//     let destination = current - 1;
-//     while (!cups.includes(destination)) {
-//         // console.log('try destination', destination);
-//         if (destination < 1) {
-//             console.log('cups', cups, 'max:', Math.max(...cups));
-//             destination = Math.max(...cups);
-//         } else {
-//             destination -= 1;
-//         }
-//     }
-//     // console.log('destination', destination);
-//     cups.splice(cups.indexOf(destination) + 1, 0, ...moveCups);
-//     if (cups.indexOf(current) + 2 > cups.length) {
-//         current = cups[0];
-//     } else {
-//         current = cups[cups.indexOf(current) + 1];
-//     }
-// }
-// console.log(cups);
-// console.log(
-//     cups.slice(cups.indexOf(1) + 1).join('') +
-//         cups.slice(0, cups.indexOf(1)).join(''),
-// );
+// Part One
+
+[partOneCups, partOneCupMap] = doMovesN(100, cups, cups.head);
+let current = partOneCupMap[1];
+let partOneOutput = '';
+let afterOne = 1;
+while (afterOne < partOneCups.length) {
+    current = current.next;
+    partOneOutput += current.value;
+    afterOne++;
+}
+console.log('Part One:', partOneOutput);
 
 // Part Two
-
-let current = cups[0];
-
-// construct rest of list
-for (let i = cups.length; i <= 1000000; i++) {
+cups = yallist.create(cupsInput);
+// construct rest of cups until one million
+for (let i = cups.length + 1; i <= 1000000; i++) {
     cups.push(i);
 }
 
-for (let i = 0; i < 10000000; i++) {
-    const moveCups = cups.splice(cups.indexOf(current) + 1, 3);
-    if (moveCups.length < 3) {
-        moveCups.push(...cups.splice(0, 3 - moveCups.length));
+[partTwoCups, partTwoCupMap] = doMovesN(10000000, cups);
+
+console.log(
+    'Part Two:',
+    partTwoCupMap[1].next.value * partTwoCupMap[1].next.next.value,
+);
+
+/**
+ * Perform [N] moves on [cups]
+ * @param {number} n the amount of moves that should be executed
+ * @param {Yallist} cups Linked list of the cups
+ * @return {array} [cups, cupMap]
+ */
+function doMovesN(n, cups) {
+    // create cupMap for fast access
+    const cupMap = {};
+    let cup = cups.head;
+    cupMap[Number(cup.value)] = cup;
+    while (cup.next != null) {
+        cup = cup.next;
+        cupMap[Number(cup.value)] = cup;
     }
-    let destination = current - 1;
-    while (destination < cups.length || destination < 1 || moveCups.includes(destination)) {
-        if (destination < 1) {
-            destination = cups.length + 1;
-        } else {
-            destination -= 1;
-        }
+    cups.tail.next = cups.head; // make the loop complete
+    let current = cups.head;
+    // Do moves
+    for (let i = 0; i < n; i++) {
+        const move = doMove(cups, cupMap, current);
+        cups = move.allCups;
+        current = move.currentCup.next;
     }
-    // console.log('destination', destination);
-    cups.splice(cups.indexOf(destination) + 1, 0, ...moveCups);
-    if (cups.indexOf(current) + 1 > cups.length) {
-        current = cups[0];
-    } else {
-        current = cups[cups.indexOf(current) + 1];
-    }
-    if (i % 1000 === 0) console.log(i);
+    return [cups, cupMap];
 }
-console.log(cups);
-console.log(cups.splice(cups.indexOf(1) + 1, 2).join(''));
+
+/**
+ * Perform one move on [cups] using [current] as the starting point.
+ * @param {Yallist} cups Linked list of cups
+ * @param {Map} cupMap Map of all cups with their node in the Linked List [cups]
+ * @param {Node} current Current node
+ * @return {Object} [cups, current]
+ */
+function doMove(cups, cupMap, current) {
+    const moveCup = current.next;
+    let destination = current.value - 1;
+    // underflow if needed
+    if (destination < 1) destination = cups.length;
+    // If the destination is in one of the moved cups, go one lower
+    while (
+        [moveCup.value, moveCup.next.value, moveCup.next.next.value].includes(
+            destination,
+        )
+    ) {
+        destination -= 1;
+        if (destination < 1) destination = cups.length;
+    }
+    destinationNode = cupMap[destination];
+
+    // Move three cups to destination
+    current.next = moveCup.next.next.next; // remove three from after current
+    moveCup.next.next.next = destinationNode.next; // place them after the destination
+    destinationNode.next = moveCup;
+    return {allCups: cups, currentCup: current};
+}
