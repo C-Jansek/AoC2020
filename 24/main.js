@@ -1,23 +1,25 @@
 const fs = require('fs');
 const _ = require('lodash');
-let instructions = fs
-    .readFileSync('test_input.csv', 'utf8')
+const instructions = fs
+    .readFileSync('input.csv', 'utf8')
     .split('\n')
     .map((v) =>
         v
             .replace(/([ew])/g, '$1,')
             .split(',')
-            .slice(0, -1),
+            .slice(0, -1)
     );
 
 // console.log(instructions);
 
-//      Part One
-//      Go through the renovation crew's list and determine which tiles they need to flip.
-//      After all of the instructions have been followed,
-// ??   how many tiles are left with the black side up?
+/**
+ * Part One
+ * Go through the renovation crew's list and determine which tiles they need to flip.
+ * After all of the instructions have been followed,
+ * how many tiles are left with the black side up?
+ */
 
-let flippedTiles = [];
+const tileCounts = new Map();
 
 instructions.forEach((instruction) => {
     const x =
@@ -30,91 +32,65 @@ instructions.forEach((instruction) => {
         countOccurences(instruction, 'sw') -
         countOccurences(instruction, 'se') +
         countOccurences(instruction, 'nw');
-    // const z =
-    //     countOccurences(instruction, 'nw') - countOccurences(instruction, 'se');
-    // flipTileCoords = [x, y, z];
-    flipTileCoords = [x, y];
-    if (
-        flippedTiles.find(
-            (tile) => tile.coords.toString() === flipTileCoords.toString(),
-        )
-    ) {
-        flippedTiles.find(
-            (tile) => tile.coords.toString() === flipTileCoords.toString(),
-        ).count += 1;
+
+    if (tileCounts.has([x, y].toString())) {
+        tileCounts.set([x, y].toString(), tileCounts.get([x, y].toString()) + 1);
     } else {
-        flippedTiles.push({
-            coords: flipTileCoords,
-            count: 1,
-        });
+        tileCounts.set([x, y].toString(), 1);
     }
 });
 
-flippedTiles = flippedTiles.filter((tile) => {
-    return tile.count % 2 !== 0;
+// Remove ones that are flipped even times (and thus on starting side)
+flippedTiles = Array.from(tileCounts).filter((tile) => {
+    return tile[1] % 2 !== 0;
 }, 0);
+
 console.log('Part One:', flippedTiles.length);
 
-//      Part Two
-// ??   How many tiles will be black after 100 days?
-console.log(countBlackAdjacentTiles(flippedTiles, [-1, 0]));
-console.log(flippedTiles);
-console.log(doDaysN(flippedTiles, 100));
+/**
+ * Part Two
+ * The tile floor in the lobby is meant to be a living art exhibit.
+ * Every day, the tiles are all flipped according to the following rules:
+ *   - Any black tile with zero or more than 2 black tiles adjacent to it is flipped to white.
+ *   - Any white tile with exactly 2 black tiles adjacent to it is flipped to black.
+ * Here, tiles adjacent means the six tiles directly touching the tile in question.
+ *
+ * How many tiles will be black after 100 days?
+ */
 
-/** */
-function countOccurences(array, value) {
-    return array.filter((v) => v === value).length;
-}
-
-/** */
-function doDay(tiles, floorSize) {
-    // console.log(floorSize);
-    [minX, maxX] = floorSize[0];
-    [minY, maxY] = floorSize[1];
-    const newTiles = _.cloneDeep(tiles);
-    // console.log('doDay', minX, maxX, minY, maxY);
-
-    for (let i = minX; i <= maxX; i++) {
-        for (let j = minY; j <= maxY; j++) {
-            // console.log('check', i, j);
-            if (tiles.find((tile) => tile.coords === [i, j]) !== undefined) {
-                // Tile is black
-                if (![1, 2].includes(countBlackAdjacentTiles(tiles, [i, j]))) {
-                    // console.log('black tile flipped to white');
-                    newTiles.splice(
-                        newTiles.indexOf(
-                            newTiles.find((tile) => tile.coords === [i, j]),
-                        ),
-                    );
-                }
-            } else {
-                // Tile is white
-                if (countBlackAdjacentTiles(tiles, [i, j]) == 2) {
-                    // console.log('white tile flipped to black');
-                    newTiles.push({
-                        coords: [i, j],
-                    });
-                }
-            }
-        }
+tileColors = new Map(tileCounts);
+// Remove all keys that are not flipped, and set color to black
+tileColors.forEach((value, key) => {
+    if (tileCounts.get(key) % 2 === 0) {
+        tileColors.delete(key);
+    } else {
+        tileColors.set(key, 'black');
     }
+});
 
-    floorSize = [
-        [
-            Math.min(...newTiles.map((v) => v.coords[0])) - 1,
-            Math.max(...newTiles.map((v) => v.coords[0])) + 1,
-        ],
-        [
-            Math.min(...newTiles.map((v) => v.coords[1])) - 1,
-            Math.max(...newTiles.map((v) => v.coords[1])) + 1,
-        ],
-    ];
+console.log(
+    'Part Two:',
+    Array.from(doRoundsN(tileColors, 100)).filter((v) => v[1] === 'black').length
+);
 
-    return [newTiles, floorSize];
+// =========================================== FUNCTIONS ===========================================
+/**
+ * Count the amount of times that [value] is in [array].
+ * @param {string[]} array Array to be checked.
+ * @param {string} value The value to check for.
+ * @return {number} The amount of times [value] is in [array].
+ */
+function countOccurences(array, value) {
+    return array.reduce((cnt, v) => cnt + (v === value), 0);
 }
 
-/** */
-function countBlackAdjacentTiles(tiles, currentCoords) {
+/**
+ * Count how many of the (directly) neighbouring tiles are black.
+ * @param {Map} map Map used to see which color neighbours are.
+ * @param {number[]} pos Array which holds the position of the hexagonal tile.
+ * @return {number} Amount of black tiles bordering.
+ */
+function countNeighboursBlack(map, pos) {
     adjacentCoordsModifiers = [
         [0, 1],
         [0, -1],
@@ -123,38 +99,90 @@ function countBlackAdjacentTiles(tiles, currentCoords) {
         [-1, 1],
         [1, -1],
     ];
-    let blackAdjacentCount = 0;
-    tiles.forEach((tile) => {
-        adjacentCoordsModifiers.forEach((modifier) => {
-            if (
-                tile.coords.toString() ==
-                [
-                    currentCoords[0] + modifier[0],
-                    currentCoords[1] + modifier[1],
-                ].toString()
-            )
-                blackAdjacentCount++;
-        });
+
+    count = 0;
+    adjacentCoordsModifiers.forEach((modifier) => {
+        if (
+            map.get([pos[0] + modifier[0], pos[1] + modifier[1]].toString()) === 'black'
+        ) {
+            count++;
+        }
     });
-    return blackAdjacentCount;
+    return count;
 }
 
-/** */
-function doDaysN(tiles, n) {
-    let floorSize = [
-        [
-            Math.min(...tiles.map((v) => v.coords[0])) - 1,
-            Math.max(...tiles.map((v) => v.coords[0])) + 1,
-        ],
-        [
-            Math.min(...tiles.map((v) => v.coords[1])) - 1,
-            Math.max(...tiles.map((v) => v.coords[1])) + 1,
-        ],
+/**
+ * Perform one round of tile-flipping.
+ * Flip all black tiles with 0 or more than 2 black tiles (directly) bordering itself.
+ * Also flip all white tiles with exactly 2 black tiles (directly) bordering itself.
+ * @param {Map} map Map of tiles to perform round of tile-flipping on
+ * @return {Map} Map after one round of tile-flipping
+ */
+function doRound(map) {
+    compareMap = _.cloneDeep(map);
+    map = expandMap(map);
+    map.forEach((value, key) => {
+        const neighbours = countNeighboursBlack(
+            compareMap,
+            key.split(',').map((v) => Number(v))
+        );
+        // console.log(key, neighbours);
+        if (map.get(key) === 'black') {
+            if (neighbours === 0 || neighbours > 2) {
+                map.set(key, 'white');
+            }
+        } else {
+            if (neighbours === 2) {
+                map.set(key, 'black');
+            }
+        }
+    });
+    return map;
+}
+
+/**
+ * Expands the map to include also all white tiles that were not in the Map already,
+ * which border at least one black tile.
+ * @param {Map} map The map that should be expanded
+ * @return {Map} The expanded Map
+ */
+function expandMap(map) {
+    const adjacentCoordsModifiers = [
+        [0, 1],
+        [0, -1],
+        [1, 0],
+        [-1, 0],
+        [-1, 1],
+        [1, -1],
     ];
-    console.log('doDaysN', n, '\n', floorSize);
+    map.forEach((value, key) => {
+        if (value === 'black') {
+            const pos = key.split(',').map((v) => Number(v));
+            adjacentCoordsModifiers.forEach((modifier) => {
+                if (
+                    map.get([pos[0] + modifier[0], pos[1] + modifier[1]].toString()) ===
+                    undefined
+                ) {
+                    map.set(
+                        [pos[0] + modifier[0], pos[1] + modifier[1]].toString(),
+                        'white'
+                    );
+                }
+            });
+        }
+    });
+    return map;
+}
+
+/**
+ * Perform [n] rounds of tile-flipping
+ * @param {Map} map The map of the tiles with [key: pos.toString(), value: color]
+ * @param {number} n Amount of rounds
+ * @return {Map}
+ */
+function doRoundsN(map, n) {
     for (let i = 0; i < n; i++) {
-        console.log('doDay', i, floorSize, tiles.length);
-        [tiles, floorSize] = doDay(tiles, floorSize);
+        map = doRound(map);
     }
-    return tiles;
+    return map;
 }
